@@ -64,3 +64,4 @@ target/
 src/huawei_solar/version.py
 
 report.xml
+src/huawei_solar/huawei-solar-lib.code-workspace

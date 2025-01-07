@@ -14,12 +14,10 @@ from hashlib import sha256
 from typing import cast
 
 import backoff
-from pymodbus.constants import Endian
 from pymodbus.exceptions import ConnectionException as ModbusConnectionException
-from pymodbus.message.rtu import MessageRTU
-from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
-from pymodbus.pdu import ExceptionResponse, ModbusExceptions, ModbusRequest
-from pymodbus.register_write_message import (
+from pymodbus.framer import FramerRTU
+from pymodbus.pdu import ExceptionResponse, ModbusPDU
+from pymodbus.pdu.register_message import (
     WriteMultipleRegistersResponse,
     WriteSingleRegisterResponse,
 )
@@ -144,7 +142,7 @@ class AsyncHuaweiSolar:
                     self._client.connected_event.wait(),
                     WAIT_FOR_CONNECTION_TIMEOUT,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 LOGGER.exception(
                     "Timeout while waiting for connection. Reconnecting",
                 )
@@ -171,7 +169,7 @@ class AsyncHuaweiSolar:
         host,
         port: int = DEFAULT_TCP_PORT,
         slave: int = DEFAULT_SLAVE_ID,
-        timeout: int = DEFAULT_TIMEOUT,
+        timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
     ):
         """Create an AsyncHuaweiSolar instance."""
@@ -198,7 +196,7 @@ class AsyncHuaweiSolar:
         port,
         baudrate: int = DEFAULT_BAUDRATE,
         slave: int = DEFAULT_SLAVE_ID,
-        timeout: int = DEFAULT_TIMEOUT,
+        timeout: int = DEFAULT_TIMEOUT,  # noqa: ASYNC109
         cooldown_time: float = DEFAULT_COOLDOWN_TIME,
         **serial_kwargs,
     ):
@@ -240,10 +238,10 @@ class AsyncHuaweiSolar:
     async def _decode_response(
         self,
         reg: RegisterDefinition,
-        decoder: BinaryPayloadDecoder,
+        registers: list[int],
     ):
         """Decode a modbus register and puts it into a Result object."""
-        result = reg.decode(decoder)
+        result = reg.decode(registers)
 
         if not hasattr(reg, "unit") or callable(reg.unit) or isinstance(reg.unit, dict):
             return Result(result, None)
@@ -265,6 +263,9 @@ class AsyncHuaweiSolar:
         registers = list(map(REGISTERS.get, names))
 
         if None in registers:
+            missing_registers = set(names) - set(REGISTERS.keys())
+            if missing_registers:
+                raise ValueError(f"Did not recognize register names: {', '.join(missing_registers)}")
             raise ValueError("Did not recognize all register names")
         registers = t.cast(list[RegisterDefinition], registers)
 
@@ -294,21 +295,15 @@ class AsyncHuaweiSolar:
             slave,
         )
 
-        decoder = BinaryPayloadDecoder.fromRegisters(
-            response.registers,
-            byteorder=Endian.BIG,
-            wordorder=Endian.BIG,
-        )
+        start_register = registers[0].register
 
-        result = [await self._decode_response(registers[0], decoder)]
-        for idx in range(1, len(registers)):
-            skip_registers = registers[idx].register - (registers[idx - 1].register + registers[idx - 1].length)
-            decoder.skip_bytes(
-                skip_registers * 2,
-            )  # registers are 16-bit, so we need to multiply by two
-            result.append(await self._decode_response(registers[idx], decoder))
-
-        return result
+        return [
+            await self._decode_response(
+                reg,
+                response.registers[reg.register - start_register : reg.register - start_register + reg.length],
+            )
+            for reg in registers
+        ]
 
     async def _read_registers(  # noqa: C901
         self,
@@ -381,13 +376,13 @@ class AsyncHuaweiSolar:
             try:
                 response = await self._client.read_holding_registers(
                     register,
-                    length,
+                    count=length,
                     slave=slave or self.slave_id,
                 )
 
                 # trigger a backoff if we get a SlaveBusy-exception
                 if isinstance(response, ExceptionResponse):
-                    if response.exception_code == ModbusExceptions.SlaveBusy:
+                    if response.exception_code == ExceptionResponse.SLAVE_BUSY:
                         LOGGER.debug(
                             "Got a SlaveBusy Modbus Exception while reading %d (length %d) from slave %d",
                             register,
@@ -396,7 +391,7 @@ class AsyncHuaweiSolar:
                         )
                         raise SlaveBusyException
 
-                    if response.exception_code == ModbusExceptions.SlaveFailure:
+                    if response.exception_code == ExceptionResponse.SLAVE_FAILURE:
                         LOGGER.debug(
                             "Got a SlaveFailure Modbus Exception while reading %d (length %d) from slave %d",
                             register,
@@ -441,7 +436,8 @@ class AsyncHuaweiSolar:
 
         while next_object_id is not None:
             response = await self._client.execute(
-                ReadDeviceIdentifierRequest(
+                no_response_expected=False,
+                request=ReadDeviceIdentifierRequest(
                     read_dev_id_code=read_dev_id_code,
                     object_id=next_object_id,
                 ),
@@ -450,9 +446,9 @@ class AsyncHuaweiSolar:
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
-                if response.exception_code == ModbusExceptions.SlaveBusy:
+                if response.exception_code == ExceptionResponse.SLAVE_BUSY:
                     raise SlaveBusyException
-                if response.exception_code == ModbusExceptions.SlaveFailure:
+                if response.exception_code == ExceptionResponse.SLAVE_FAILURE:
                     raise SlaveFailureException
                 raise ReadException(
                     f"Exception occurred while trying to read device infos "
@@ -548,18 +544,18 @@ class AsyncHuaweiSolar:
             ),
             on_giveup=backoff_giveup,
         )
-        async def _perform_request(request: ModbusRequest, response_type):
+        async def _perform_request(request: ModbusPDU, response_type):
             response = cast(
                 PrivateHuaweiModbusResponse,
-                await self._client.execute(request),
+                await self._client.execute(no_response_expected=False, request=request),
             )
 
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
-                if response.exception_code == ModbusExceptions.SlaveBusy:
+                if response.exception_code == ExceptionResponse.SLAVE_BUSY:
                     raise SlaveBusyException
-                if response.exception_code == ModbusExceptions.SlaveFailure:
+                if response.exception_code == ExceptionResponse.SLAVE_FAILURE:
                     raise SlaveFailureException
                 raise ReadException(
                     f"Exception occurred while trying to read file {hex(file_type)}: "
@@ -575,7 +571,7 @@ class AsyncHuaweiSolar:
                 StartUploadModbusRequest(
                     file_type,
                     customized_data,
-                    slave=slave or self.slave_id,
+                    dev_id=slave or self.slave_id,
                 ),
                 StartUploadModbusResponse,
             )
@@ -593,7 +589,7 @@ class AsyncHuaweiSolar:
                     UploadModbusRequest(
                         file_type,
                         next_frame_no,
-                        slave=slave or self.slave_id,
+                        dev_id=slave or self.slave_id,
                     ),
                     UploadModbusResponse,
                 )
@@ -603,7 +599,7 @@ class AsyncHuaweiSolar:
 
             # Complete the upload and check the CRC
             complete_upload_response = await _perform_request(
-                CompleteUploadModbusRequest(file_type, slave=slave or self.slave_id),
+                CompleteUploadModbusRequest(file_type, dev_id=slave or self.slave_id),
                 CompleteUploadModbusResponse,
             )
 
@@ -611,9 +607,9 @@ class AsyncHuaweiSolar:
             # swap upper and lower two bytes to match how computeCRC works
             swapped_crc = ((file_crc << 8) & 0xFF00) | ((file_crc >> 8) & 0x00FF)
 
-            if not MessageRTU.check_CRC(file_data, swapped_crc):
+            if not FramerRTU.check_CRC(file_data, swapped_crc):
                 raise ReadException(
-                    f"Computed CRC {MessageRTU.compute_CRC(file_data):x} for file {file_type} "
+                    f"Computed CRC {FramerRTU.compute_CRC(file_data):x} for file {file_type} "
                     f"does not match expected value {swapped_crc}",
                 )
 
@@ -637,11 +633,9 @@ class AsyncHuaweiSolar:
         if not reg.writeable:
             raise WriteException("Register is not writable")
 
-        builder = BinaryPayloadBuilder(byteorder=Endian.BIG, wordorder=Endian.BIG)
-        reg.encode(value, builder)
-        value = builder.to_registers()
+        registers = reg.encode(value)
 
-        if len(value) != reg.length:
+        if len(registers) != reg.length:
             raise WriteException("Wrong number of registers to write")
 
         def backoff_giveup(details):
@@ -665,7 +659,7 @@ class AsyncHuaweiSolar:
         async def _do_set():
             return await self._write_registers(
                 reg.register,
-                builder.to_registers(),
+                registers,
                 slave,
             )
 
@@ -673,7 +667,7 @@ class AsyncHuaweiSolar:
             LOGGER.debug(
                 "Writing to register %s value %s on slave %s",
                 name,
-                value,
+                registers,
                 slave or self.slave_id,
             )
             return await _do_set()
@@ -715,21 +709,20 @@ class AsyncHuaweiSolar:
             if isinstance(response, ExceptionResponse):
                 if response.exception_code == PERMISSION_DENIED_EXCEPTION_CODE:
                     raise PermissionDenied("Permission denied")
-                if response.exception_code == ModbusExceptions.IllegalAddress:
+                if response.exception_code == ExceptionResponse.ILLEGAL_ADDRESS:
                     # cfr. https://github.com/wlcrs/huawei_solar/issues/587
                     raise PermissionDenied(
                         f"Failed to write value {value} to register {register} due to IllegalAddress. "
                         "Assuming permission problem.",
                     )
                 raise WriteException(
-                    f"Failed to write value {value} to register {register}: "
-                    f"{ModbusExceptions.decode(response.exception_code)}",
+                    f"Failed to write value {value} to register {register}: {response.exception_code:02x}",
                     modbus_exception_code=response.exception_code,
                 )
 
             if single_register:
                 assert isinstance(response, WriteSingleRegisterResponse)
-                return response.address == register and response.value == value[0]
+                return response.address == register and response.registers == [value[0]]
             assert isinstance(response, WriteMultipleRegistersResponse)
             return response.address == register and response.count == len(value)
         except ModbusConnectionException as err:
@@ -765,12 +758,12 @@ class AsyncHuaweiSolar:
             challenge_request = PrivateHuaweiModbusRequest(
                 36,
                 bytes([1, 0]),
-                slave=slave or self.slave_id,
+                dev_id=slave or self.slave_id,
             )
 
             challenge_response = cast(
                 PrivateHuaweiModbusResponse,
-                await self._client.execute(challenge_request),
+                await self._client.execute(no_response_expected=False, request=challenge_request),
             )
 
             assert challenge_response.content[0] == LOGIN_CHALLENGE_SUBCOMMAND
@@ -798,11 +791,11 @@ class AsyncHuaweiSolar:
             login_request = PrivateHuaweiModbusRequest(
                 37,
                 login_bytes,
-                slave=slave or self.slave_id,
+                dev_id=slave or self.slave_id,
             )
             login_response = cast(
                 PrivateHuaweiModbusResponse,
-                await self._client.execute(login_request),
+                await self._client.execute(no_response_expected=False, request=login_request),
             )
 
             if login_response.content[1] == 0:
@@ -835,10 +828,7 @@ class AsyncHuaweiSolar:
                 slave=slave_id or self.slave_id,
             )
             if isinstance(response, ExceptionResponse):
-                LOGGER.warning(
-                    "Received an error after sending the heartbeat command: %s",
-                    ModbusExceptions.decode(response.exception_code),
-                )
+                LOGGER.warning("Received an error after sending the heartbeat command: %02x", response.exception_code)
                 return False
             LOGGER.debug("Heartbeat succeeded")
         except HuaweiSolarException:

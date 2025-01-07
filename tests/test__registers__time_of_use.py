@@ -4,7 +4,7 @@ import pytest
 
 import huawei_solar.register_names as rn
 from huawei_solar.exceptions import TimeOfUsePeriodsException
-from huawei_solar.registers import REGISTERS, HUAWEI_LUNA2000_TimeOfUsePeriod, LG_RESU_TimeOfUsePeriod
+from huawei_solar.registers import REGISTERS, ChargeFlag, HUAWEI_LUNA2000_TimeOfUsePeriod, LG_RESU_TimeOfUsePeriod
 
 huawei_ppr = REGISTERS[rn.STORAGE_HUAWEI_LUNA2000_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS]
 lg_ppr = REGISTERS[rn.STORAGE_LG_RESU_TIME_OF_USE_CHARGING_AND_DISCHARGING_PERIODS]
@@ -14,8 +14,8 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__too_long_span__start_time():
     tou = HUAWEI_LUNA2000_TimeOfUsePeriod(
         start_time=60 * 24 + 1,
         end_time=15,
-        charge_flag=0,
-        days_effective=[True, True, True, True, True, True, True],
+        charge_flag=ChargeFlag.DISCHARGE,
+        days_effective=(True, True, True, True, True, True, True),
     )
     with pytest.raises(
         expected_exception=TimeOfUsePeriodsException,
@@ -28,8 +28,8 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__too_long_span__end_time():
     tou = HUAWEI_LUNA2000_TimeOfUsePeriod(
         start_time=15,
         end_time=60 * 24 + 1,
-        charge_flag=0,
-        days_effective=[True, True, True, True, True, True, True],
+        charge_flag=ChargeFlag.DISCHARGE,
+        days_effective=(True, True, True, True, True, True, True),
     )
     with pytest.raises(
         expected_exception=TimeOfUsePeriodsException,
@@ -42,8 +42,8 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__negative__start_time():
     tou = HUAWEI_LUNA2000_TimeOfUsePeriod(
         start_time=-10,
         end_time=15,
-        charge_flag=0,
-        days_effective=[True, True, True, True, True, True, True],
+        charge_flag=ChargeFlag.DISCHARGE,
+        days_effective=(True, True, True, True, True, True, True),
     )
     with pytest.raises(
         expected_exception=TimeOfUsePeriodsException,
@@ -56,8 +56,8 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__negative__end_time():
     tou = HUAWEI_LUNA2000_TimeOfUsePeriod(
         start_time=15,
         end_time=-2,
-        charge_flag=0,
-        days_effective=[True, True, True, True, True, True, True],
+        charge_flag=ChargeFlag.DISCHARGE,
+        days_effective=(True, True, True, True, True, True, True),
     )
     with pytest.raises(
         expected_exception=TimeOfUsePeriodsException,
@@ -70,8 +70,8 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__start_time_bigger_than_end_tim
     tou = HUAWEI_LUNA2000_TimeOfUsePeriod(
         start_time=15,
         end_time=2,
-        charge_flag=0,
-        days_effective=[True, True, True, True, True, True, True],
+        charge_flag=ChargeFlag.DISCHARGE,
+        days_effective=(True, True, True, True, True, True, True),
     )
     with pytest.raises(
         expected_exception=TimeOfUsePeriodsException,
@@ -85,14 +85,14 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__overlapping__1():
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=120,
             end_time=160,
-            charge_flag=0,
-            days_effective=[True, True, True, True, True, True, True],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(True, True, True, True, True, True, True),
         ),
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=100,
             end_time=150,
-            charge_flag=0,
-            days_effective=[True, True, True, True, True, True, True],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(True, True, True, True, True, True, True),
         ),
     ]
     with pytest.raises(
@@ -107,14 +107,14 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__overlapping__2():
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=15,
             end_time=120,
-            charge_flag=0,
-            days_effective=[True, True, True, True, True, True, True],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(True, True, True, True, True, True, True),
         ),
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=100,
             end_time=150,
-            charge_flag=0,
-            days_effective=[True, True, True, True, True, True, True],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(True, True, True, True, True, True, True),
         ),
     ]
     with pytest.raises(
@@ -129,17 +129,65 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__OK():
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=15,
             end_time=120,
-            charge_flag=0,
-            days_effective=[True, True, True, True, True, True, True],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(True, True, True, True, True, True, True),
         ),
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=121,
             end_time=150,
-            charge_flag=0,
-            days_effective=[True, True, True, True, True, True, True],
+            charge_flag=ChargeFlag.CHARGE,
+            days_effective=(False, True, True, True, True, True, True),
         ),
     ]
     huawei_ppr._validate(tou)
+
+    encoded = huawei_ppr.encode(tou)
+    assert len(encoded) == 43
+    assert encoded == [
+        2,
+        15,
+        120,
+        383,
+        121,
+        150,
+        126,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
 
 
 def test__validate__tou_periods__HUAWEI_LUNA2000__OK_2():
@@ -147,17 +195,68 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__OK_2():
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=15,
             end_time=120,
-            charge_flag=0,
-            days_effective=[True, True, True, True, True, True, True],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(True, True, True, True, True, True, True),
         ),
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=0,
             end_time=14,
-            charge_flag=0,
-            days_effective=[True, True, True, True, True, True, True],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(True, True, True, True, True, True, True),
         ),
     ]
     huawei_ppr._validate(tou)
+    encoded = huawei_ppr.encode(tou)
+
+    assert encoded == [
+        2,
+        15,
+        120,
+        383,
+        0,
+        14,
+        383,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
+
+    decoded = huawei_ppr.decode(encoded)
+
+    assert decoded == tou
 
 
 def test__validate__tou_periods__HUAWEI_LUNA2000__OK__different_days():
@@ -165,18 +264,68 @@ def test__validate__tou_periods__HUAWEI_LUNA2000__OK__different_days():
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=0,
             end_time=120,
-            charge_flag=0,
-            days_effective=[False, False, False, True, True, False, True],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(False, False, False, True, True, False, True),
         ),
         HUAWEI_LUNA2000_TimeOfUsePeriod(
             start_time=0,
             end_time=120,
-            charge_flag=0,
-            days_effective=[True, False, True, False, False, True, False],
+            charge_flag=ChargeFlag.DISCHARGE,
+            days_effective=(True, False, True, False, False, True, False),
         ),
     ]
 
     huawei_ppr._validate(tou)
+    encoded = huawei_ppr.encode(tou)
+
+    assert encoded == [
+        2,
+        0,
+        120,
+        344,
+        0,
+        120,
+        293,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
+
+    decoded = huawei_ppr.decode(encoded)
+    assert decoded == tou
 
 
 def test__validate__tou_periodsG__RESU___OK():
@@ -185,6 +334,57 @@ def test__validate__tou_periodsG__RESU___OK():
         LG_RESU_TimeOfUsePeriod(start_time=16, end_time=20, electricity_price=1),
     ]
     lg_ppr._validate(tou)
+    encoded = lg_ppr.encode(tou)
+
+    assert len(encoded) == 43
+    assert encoded == [
+        2,
+        5,
+        15,
+        0,
+        1000,
+        16,
+        20,
+        0,
+        1000,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
+
+    decoded = lg_ppr.decode(encoded)
+    assert decoded == tou
 
 
 def test__validate__tou_periodsG__RESU___overlaping():
@@ -213,3 +413,7 @@ def test__validate__tou_periods__unknown_type():
 
 def test__validate__data_type__none():
     huawei_ppr._validate([])
+
+    encoded = huawei_ppr.encode([])
+
+    assert encoded == [0] * 43

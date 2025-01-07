@@ -7,7 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from typing_extensions import override
 
@@ -38,6 +38,7 @@ from .huawei_solar import (
     AsyncHuaweiSolar,
     Result,
 )
+from .register_values import StorageProductModel
 from .registers import METER_REGISTERS, REGISTERS, TimestampRegister
 
 _LOGGER = logging.getLogger(__name__)
@@ -235,6 +236,7 @@ class HuaweiSolarBridge(ABC):
                     values = await self._get_multiple_to_dict(register_names_to_query)
                 except HuaweiSolarException as exc:
                     self._handle_batch_read_error(register_names_to_query, exc)
+                    values = {}
 
                 self._detect_state_changes(values)
                 result.update(values)
@@ -446,8 +448,8 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
             ).value
 
         if (
-            self.battery_1_type is not None
-            and self.battery_2_type is not None
+            self.battery_1_type is not StorageProductModel.NONE
+            and self.battery_2_type is not StorageProductModel.NONE
             and self.battery_1_type != self.battery_2_type
         ):
             _LOGGER.warning(
@@ -558,7 +560,7 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
             if self._dst:
                 value -= timedelta(hours=1)
 
-            return Result(value.astimezone(tz=timezone.utc), result.unit)
+            return Result(value.astimezone(tz=UTC), result.unit)
 
         return result
 

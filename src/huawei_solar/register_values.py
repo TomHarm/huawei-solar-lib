@@ -684,6 +684,53 @@ ALARM_CODES_3 = {
     ),
 }
 
+SMARTLOGGER_ALARM_CODES_1={
+    0b0001_0001_0000_0000: Alarm("Abnormal Active Schedule", 2088, "Major"),
+    0b0001_0001_0000_0001: Alarm("Abnormal Reactive Schedule", 2088, "Major"),
+    0b0001_0001_0000_0011: Alarm("MCB Disconnect", 2088, "Major"),
+    0b0001_0001_0000_0100: Alarm("Abnormal Cubicle", 2088, "Major"),
+    0b0001_0001_0000_0101: Alarm("Device Address Conflict", 2088, "Major"),
+    0b0001_0001_0000_0110: Alarm("AC SPD fault", 2088, "Major")
+# todo add the other Alarms here>
+}
+
+class SmartLoggerReactivePowerControl(IntEnum):
+    """Reactive Power Control Mode"""
+    NO_OUTPUT = 0
+    REACTIVE_POWER_SCHEDULING_VIA_DI_PORT = 1
+    REACTIVE_POWER_IN_ABSOLUTE_VALUE = 2
+    POWER_FACTOR_FIXED_VALUE = 3
+    Q_U_CHARACTERISTIC_CURVE = 4
+    COS_PHI_CHARACTERISTICS_CURVE = 5
+    Q_U_HYSTERESIS_CURVE = 6
+    REMOTE_COMMUNICATION_SCHEDULING = 7
+    POWER_FACTOR_CLOSED_LOOP_CONTROL_OLD = 9
+    POWER_FACTOR_CLOSED_LOOP_CONTROL = 10
+
+class SmartLoggerWorkingMode(IntEnum):
+    """"Working Mode"""
+
+    NO_CONTROL = 0
+    RESERVED_1 = 1
+    MAXIMUM_SELF_CONSUMPTION = 2
+    RESERVED_3 = 3
+    FULLY_FED_TO_GRID = 4
+    TIME_OF_USE = 5
+    CHARGE_DISCHARGE = 6
+    TIME_OF_USE_FIXED_POWER = 7
+
+class SmartLoggerShutDown(IntEnum):
+    """Shutdown flags"""
+
+    INVALID = 0
+    SHUT_DOWN = 1
+
+class SmartLoggerInOperation(IntEnum):
+    """In operation flags"""
+
+    INVALID = 0
+    IN_OPERATION = 1
+   
 
 class StorageCapacityControlMode(IntEnum):
     """Storage Capacity Control Mode."""

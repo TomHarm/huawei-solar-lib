@@ -511,6 +511,8 @@ SDONGLE_GRID_POWER = "sdongle_grid_power"
 SDONGLE_TOTAL_BATTERY_POWER = "sdongle_total_battery_power"
 SDONGLE_TOTAL_ACTIVE_POWER = "sdongle_total_active_power"
 
+SMARTLOGGER_MODEL = "smartlogger_model"
+
 SMARTLOGGER_DATE_TIME = "smartlogger_date_time"
 SMARTLOGGER_CITY = "smartlogger_city"
 SMARTLOGGER_DAYLIGHT_SAVING_TIME_DST = "smartlogger_daylight_saving_time_dst"

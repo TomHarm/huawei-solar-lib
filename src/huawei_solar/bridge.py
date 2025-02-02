@@ -640,8 +640,30 @@ class HuaweiEMMABridge(HuaweiSolarBridge):
     async def _populate_additional_fields(self):
         self.model = (await self.client.get(rn.EMMA_MODEL, self.slave_id)).value
 
+class HuaweiSmartLoggerBridge(HuaweiSolarBridge):
+    """Bridge for Huawei Smartlogger devices.
 
-BRIDGE_CLASSES: list[type[HuaweiSolarBridge]] = [HuaweiSUN2000Bridge, HuaweiEMMABridge]
+    Also called 'SmartLogger' by Huawei.
+    """
+
+    model: str
+
+    @classmethod
+    @override
+    def supports_device(cls, product_info: HuaweiSolarProductInfo) -> bool:
+        """Check if this class support the given device."""
+        return product_info.model_name.startswith("SmartLogger")
+
+    async def has_write_permission(self) -> bool:
+        """SmartLogger always gives write access, but we use it first until we're sure"""
+        return False
+
+    @override
+    async def _populate_additional_fields(self):
+        self.model = (await self.client.get(rn.SMARTLOGGER_MODEL, self.slave_id)).value
+
+
+BRIDGE_CLASSES: list[type[HuaweiSolarBridge]] = [HuaweiSUN2000Bridge, HuaweiEMMABridge, HuaweiSmartLoggerBridge]
 
 
 async def create_tcp_bridge(

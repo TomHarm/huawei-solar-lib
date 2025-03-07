@@ -503,6 +503,7 @@ EMMA_3PHASE_IMBALANCE_CONTROL = "emma_3phase_imbalance_control"
 EMMA_POWER_SUPPLY_CONFIGURATION = "emma_power_supply_configuration"
 EMMA_CONSIDER_MAINS_FAULTY_IF = "emma_consider_mains_faulty_if"
 LOCAL_TIME_YEAR = "local_time_year"
+LOCAL_TIME = "local_time"
 
 DAYLIGHT_SAVING_TIME = "daylight_saving_time"
 SDONGLE_TOTAL_INPUT_POWER = "sdongle_total_input_power"

@@ -1486,6 +1486,7 @@ EMMA_REGISTERS = {
     ),
     rn.NUMBER_OF_INVERTERS_FOUND: U16Register(None, 1, 30801, target_device=TargetDevice.EMMA),
     rn.NUMBER_OF_CHARGERS_FOUND: U16Register(None, 1, 30804, target_device=TargetDevice.EMMA),
+    rn.LOCAL_TIME: U32Register("seconds", 1, 31003, writeable=False, target_device=TargetDevice.EMMA),
     rn.PHASE_A_VOLTAGE_BUILT_IN_ENERGY_SENSOR: U32Register("V", 100, 31639, target_device=TargetDevice.EMMA),
     rn.PHASE_B_VOLTAGE_BUILT_IN_ENERGY_SENSOR: U32Register("V", 100, 31641, target_device=TargetDevice.EMMA),
     rn.PHASE_C_VOLTAGE_BUILT_IN_ENERGY_SENSOR: U32Register("V", 100, 31643, target_device=TargetDevice.EMMA),

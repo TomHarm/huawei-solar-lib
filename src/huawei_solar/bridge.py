@@ -569,6 +569,7 @@ class HuaweiSUN2000Bridge(HuaweiSolarBridge):
     ) -> dict[int, OptimizerRealTimeData]:
         """Read the latest Optimizer History Data File from the inverter."""
         # emulates behavior from FusionSolar app when current status of optimizers is queried
+        # TODO This behaviour here blocks getting the optimizer data via Emma, as the register here read is something different in Emma
         end_time = (await self.client.get(rn.SYSTEM_TIME_RAW, self.slave_id)).value
         start_time = end_time - 600
 
@@ -658,9 +659,9 @@ class HuaweiSmartLoggerBridge(HuaweiSolarBridge):
         """SmartLogger always gives write access, but we use it first until we're sure"""
         return False
 
-    @override
-    async def _populate_additional_fields(self):
-        self.model = (await self.client.get(rn.SMARTLOGGER_MODEL, self.slave_id)).value
+#    @override
+#    async def _populate_additional_fields(self):
+#        self.model = (await self.client.get(rn.SMARTLOGGER_MODEL, self.slave_id)).value
 
 
 BRIDGE_CLASSES: list[type[HuaweiSolarBridge]] = [HuaweiSUN2000Bridge, HuaweiEMMABridge, HuaweiSmartLoggerBridge]
